@@ -102,10 +102,18 @@ class TestDataClasses:
         assert analysis.has_pendo_attr == 0
         assert analysis.has_data_attr == 0
         assert analysis.has_text_content == 0
+        # ARIA attribute fields
+        assert analysis.has_aria_label == 0
+        assert analysis.has_aria_describedby == 0
+        assert analysis.has_role == 0
+        assert analysis.has_title == 0
+        # List fields
         assert analysis.dynamic_id_examples == []
         assert analysis.stable_id_examples == []
         assert analysis.pendo_attr_examples == []
         assert analysis.dynamic_class_examples == []
+        assert analysis.aria_label_examples == []
+        assert analysis.role_examples == []
 
     def test_page_analysis_defaults(self):
         """PageAnalysis should have proper defaults."""

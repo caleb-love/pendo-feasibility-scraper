@@ -26,10 +26,18 @@ class ElementAnalysis:
     has_pendo_attr: int = 0
     has_data_attr: int = 0
     has_text_content: int = 0
+    # ARIA accessibility attributes - stable alternatives for selectors
+    has_aria_label: int = 0
+    has_aria_describedby: int = 0
+    has_role: int = 0
+    has_title: int = 0
     dynamic_id_examples: list = field(default_factory=list)
     stable_id_examples: list = field(default_factory=list)
     pendo_attr_examples: list = field(default_factory=list)
     dynamic_class_examples: list = field(default_factory=list)
+    # ARIA examples for selector suggestions
+    aria_label_examples: list = field(default_factory=list)
+    role_examples: list = field(default_factory=list)
 
 
 @dataclass
@@ -310,7 +318,38 @@ def analyse_element(page: Page, selector: str, analysis: ElementAnalysis) -> Non
             text_content = page.evaluate('(el) => el.textContent?.trim()?.substring(0, 50) || ""', element)
             if text_content and len(text_content) > 2:
                 analysis.has_text_content += 1
-                
+
+            # Analyse ARIA attributes - stable alternatives for selectors
+            aria_data = page.evaluate('''
+                (el) => {
+                    return {
+                        ariaLabel: el.getAttribute('aria-label') || '',
+                        ariaDescribedby: el.getAttribute('aria-describedby') || '',
+                        ariaLabelledby: el.getAttribute('aria-labelledby') || '',
+                        role: el.getAttribute('role') || '',
+                        title: el.getAttribute('title') || ''
+                    };
+                }
+            ''', element)
+
+            if aria_data.get('ariaLabel'):
+                analysis.has_aria_label += 1
+                if len(analysis.aria_label_examples) < 5:
+                    analysis.aria_label_examples.append(aria_data['ariaLabel'])
+
+            if aria_data.get('ariaDescribedby') or aria_data.get('ariaLabelledby'):
+                analysis.has_aria_describedby += 1
+
+            if aria_data.get('role'):
+                analysis.has_role += 1
+                if len(analysis.role_examples) < 5:
+                    role_value = aria_data['role']
+                    if role_value not in analysis.role_examples:
+                        analysis.role_examples.append(role_value)
+
+            if aria_data.get('title'):
+                analysis.has_title += 1
+
     except Exception:
         pass
 
@@ -659,7 +698,17 @@ def generate_report(url: str, analyses: list[PageAnalysis], software: SoftwareDe
     data_attr_inputs = sum(a.inputs.has_data_attr for a in analyses)
     
     text_content_buttons = sum(a.buttons.has_text_content for a in analyses)
-    
+
+    # ARIA attribute aggregation
+    aria_label_buttons = sum(a.buttons.has_aria_label for a in analyses)
+    aria_label_inputs = sum(a.inputs.has_aria_label for a in analyses)
+    aria_describedby_buttons = sum(a.buttons.has_aria_describedby for a in analyses)
+    aria_describedby_inputs = sum(a.inputs.has_aria_describedby for a in analyses)
+    role_buttons = sum(a.buttons.has_role for a in analyses)
+    role_inputs = sum(a.inputs.has_role for a in analyses)
+    title_buttons = sum(a.buttons.has_title for a in analyses)
+    title_inputs = sum(a.inputs.has_title for a in analyses)
+
     total_dynamic_classes = sum(a.dynamic_class_count for a in analyses)
     
     # Collect examples
@@ -667,7 +716,9 @@ def generate_report(url: str, analyses: list[PageAnalysis], software: SoftwareDe
     all_stable_id_examples = []
     all_pendo_attr_examples = []
     all_dynamic_class_examples = []
-    
+    all_aria_label_examples = []
+    all_role_examples = []
+
     for a in analyses:
         all_dynamic_id_examples.extend(a.buttons.dynamic_id_examples)
         all_dynamic_id_examples.extend(a.inputs.dynamic_id_examples)
@@ -678,6 +729,10 @@ def generate_report(url: str, analyses: list[PageAnalysis], software: SoftwareDe
         all_dynamic_class_examples.extend(a.dynamic_class_examples)
         all_dynamic_class_examples.extend(a.buttons.dynamic_class_examples)
         all_dynamic_class_examples.extend(a.inputs.dynamic_class_examples)
+        all_aria_label_examples.extend(a.buttons.aria_label_examples)
+        all_aria_label_examples.extend(a.inputs.aria_label_examples)
+        all_role_examples.extend(a.buttons.role_examples)
+        all_role_examples.extend(a.inputs.role_examples)
     
     # Deduplicate dynamic classes
     seen_dynamic_classes = set()
@@ -838,7 +893,56 @@ def generate_report(url: str, analyses: list[PageAnalysis], software: SoftwareDe
         for attr in list(set(all_pendo_attr_examples))[:3]:
             lines.append(f'  {attr}')
         lines.append('')
-    
+
+    # ARIA Attributes Section - Alternative Selectors
+    total_aria_labels = aria_label_buttons + aria_label_inputs
+    total_with_roles = role_buttons + role_inputs
+    total_with_titles = title_buttons + title_inputs
+
+    if total_aria_labels > 0 or total_with_roles > 0:
+        lines.append('-' * 65)
+        lines.append('1b. ARIA ATTRIBUTES (Alternative Selectors)')
+        lines.append('-' * 65)
+        lines.append('')
+        lines.append('ARIA attributes are accessibility-focused and typically stable.')
+        lines.append('They can be used as reliable selectors when IDs are dynamic.')
+        lines.append('')
+
+        aria_selector_hint = '[GOOD - can use [aria-label="..."] selector]'
+
+        lines.append('BUTTONS:')
+        aria_label_note = aria_selector_hint if aria_label_buttons > 0 else ''
+        lines.append(f'  With aria-label: {aria_label_buttons} {aria_label_note}')
+        lines.append(f'  With aria-describedby/labelledby: {aria_describedby_buttons}')
+        lines.append(f'  With role attribute: {role_buttons}')
+        lines.append(f'  With title attribute: {title_buttons}')
+        lines.append('')
+
+        lines.append('INPUTS:')
+        aria_label_note = aria_selector_hint if aria_label_inputs > 0 else ''
+        lines.append(f'  With aria-label: {aria_label_inputs} {aria_label_note}')
+        lines.append(f'  With aria-describedby/labelledby: {aria_describedby_inputs}')
+        lines.append(f'  With role attribute: {role_inputs}')
+        lines.append(f'  With title attribute: {title_inputs}')
+        lines.append('')
+
+        if all_aria_label_examples:
+            lines.append('Example aria-label values (excellent for selectors):')
+            unique_labels = list(set(all_aria_label_examples))[:5]
+            for label in unique_labels:
+                safe_label = label[:40] + '...' if len(label) > 40 else label
+                lines.append(f'  [aria-label="{safe_label}"]')
+            lines.append('')
+            lines.append('Usage in Pendo: button[aria-label="Submit"], input[aria-label="Search"]')
+            lines.append('')
+
+        if all_role_examples:
+            lines.append('Role attributes found:')
+            unique_roles = list(set(all_role_examples))[:5]
+            for role in unique_roles:
+                lines.append(f'  [role="{role}"]')
+            lines.append('')
+
     # Section 2: Dynamic CSS Detail
     lines.append('-' * 65)
     lines.append('2. CSS CLASS ANALYSIS')

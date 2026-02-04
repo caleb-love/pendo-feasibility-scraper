@@ -112,6 +112,13 @@ def sample_element_analysis():
     analysis.has_pendo_attr = 1
     analysis.has_data_attr = 4
     analysis.has_text_content = 8
+    # ARIA attributes
+    analysis.has_aria_label = 3
+    analysis.has_aria_describedby = 1
+    analysis.has_role = 5
+    analysis.has_title = 2
+    analysis.aria_label_examples = ['Submit', 'Cancel']
+    analysis.role_examples = ['button', 'link']
     return analysis
 
 
