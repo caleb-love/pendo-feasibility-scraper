@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: pendo-feasibility-api
+    env: docker
+    dockerfilePath: deploy/Dockerfile.api
+    plan: starter
+    envVars:
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false
+      - key: ALLOWED_GOOGLE_DOMAIN
+        value: pendo.io
+      - key: SESSION_SECRET
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: pendo-feasibility-redis
+          type: redis
+          property: connectionString
+  - type: worker
+    name: pendo-feasibility-worker
+    env: docker
+    dockerfilePath: deploy/Dockerfile.worker
+    plan: starter
+    envVars:
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false
+      - key: ALLOWED_GOOGLE_DOMAIN
+        value: pendo.io
+      - key: SESSION_SECRET
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: pendo-feasibility-redis
+          type: redis
+          property: connectionString
+  - type: redis
+    name: pendo-feasibility-redis
+    plan: starter
