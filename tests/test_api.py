@@ -15,14 +15,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Check if server dependencies are available at module level
-# Use a simple check that doesn't cause import errors
+# Must check authlib and cryptography which can cause runtime panics
 def _check_server_available():
     try:
         import fastapi
         import starlette
-        # Don't try to import server.app here as it may have deep dependencies
+        # Must also check authlib - it imports cryptography which can panic
+        # in certain environments with broken Rust bindings
+        import authlib
         return True
-    except ImportError:
+    except (ImportError, Exception):
+        # Catch any exception including pyo3_runtime.PanicException
         return False
 
 SERVER_DEPS_AVAILABLE = _check_server_available()
