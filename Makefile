@@ -1,9 +1,19 @@
-.PHONY: setup install run-cli run-api run-worker run-web clean
+.PHONY: start setup install run-cli run-api run-worker run-web build-web clean help
 
 # Default Python in venv
 PYTHON := venv/bin/python
 PIP := venv/bin/pip
 
+# ──────────────────────────────────────────────
+# One-command launch: auto-setup + open Apple II UI
+# ──────────────────────────────────────────────
+start:
+	@if [ ! -d "venv" ]; then echo "First-time setup..." && ./setup.sh; fi
+	@$(PYTHON) pendo_feasibility_scraper.py
+
+# ──────────────────────────────────────────────
+# Individual targets
+# ──────────────────────────────────────────────
 setup:
 	@./setup.sh
 
@@ -34,9 +44,10 @@ clean:
 	rm -rf worker/__pycache__
 
 help:
-	@echo "Pendo Feasibility Scraper"
+	@echo "Pendo Feasibility Scraper //e"
 	@echo ""
 	@echo "Usage:"
+	@echo "  make start         - Launch local UI (auto-setup if needed)"
 	@echo "  make setup         - Create venv and install all deps"
 	@echo "  make run-cli URL=https://example.com - Run CLI scan"
 	@echo "  make run-api       - Start API server (port 8000)"

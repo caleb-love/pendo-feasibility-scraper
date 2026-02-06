@@ -1,35 +1,61 @@
-# Pendo Feasibility Scraper
+# Pendo Feasibility Scraper //e
 
-Hosted UI + API + worker for analyzing Pendo tagging feasibility across B2B SaaS apps.
+Analyses a website for Pendo tagging compatibility — detects dynamic IDs, CSS-in-JS classes, shadow DOM, iframes, canvas elements, and installed software. Outputs a risk-scored feasibility report.
 
-## Features
-- Google OAuth login restricted to a Pendo domain
-- Web UI for submitting scans and viewing reports
-- Background worker running Playwright
-- Text and JSON report outputs
-- CLI mode still supported
+Ships with a retro Apple II CRT-themed local UI that launches in your browser.
 
 ## Quick Start
 
-### One-command setup
 ```bash
-./setup.sh
-```
-This creates a virtual environment, installs all Python and Node dependencies, and sets up Playwright.
-
-### Activate the environment
-```bash
-source venv/bin/activate
+make start
 ```
 
-### CLI usage (no Redis needed)
+That's it. On first run it creates a virtualenv, installs dependencies, installs Playwright Chromium, then opens the Apple II UI at `http://localhost:8080`.
+
+## Features
+
+- **One-command launch** — `make start` handles setup + server + browser open
+- **Apple II CRT interface** — green phosphor text, scanlines, blinking cursor, the works
+- **Real-time progress** — scan status streams line-by-line into the CRT screen
+- **Manual login support** — opens a visible browser for you to log in, then click Continue in the UI
+- **CLI mode** — pass a URL argument for headless terminal-only usage
+- **Hosted mode** — full-stack deployment with Google OAuth, Redis queue, and React web UI
+- **Comprehensive analysis:**
+  - Element ID stability scoring (stable vs dynamic vs missing)
+  - Dynamic CSS class detection (CSS Modules, Styled Components, Emotion, JSS, etc.)
+  - `data-pendo-*` attribute detection
+  - Software/framework fingerprinting (React, Next.js, Angular, Vue, MUI, Chakra, etc.)
+  - Competitor analytics detection (Appcues, WalkMe, Userpilot, Chameleon)
+  - Shadow DOM, iframe, and canvas element mapping
+  - Risk scoring with actionable recommendations
+
+## Usage
+
+### Local UI (recommended)
+
 ```bash
-python pendo_feasibility_scraper.py https://app.example.com
-# or
+make start
+```
+
+Opens the Apple II interface in your browser. Enter a URL, configure options, click **RUN SCAN**. The report renders on-screen with copy and JSON download buttons.
+
+### CLI mode
+
+```bash
+# With make
 make run-cli URL=https://app.example.com
+
+# Direct
+source venv/bin/activate
+python pendo_feasibility_scraper.py https://app.example.com
 ```
 
-### Full stack (requires Redis)
+Opens a visible browser for manual login, then crawls pages and saves `.txt` and `.json` reports to the current directory.
+
+### Hosted mode (requires Redis + OAuth)
+
+For team deployments with Google OAuth and a job queue:
+
 ```bash
 # Terminal 1: API server
 make run-api
@@ -37,37 +63,86 @@ make run-api
 # Terminal 2: Background worker
 make run-worker
 
-# Terminal 3: Web UI (optional, for development)
+# Terminal 3: React web UI (development)
 make run-web
 ```
 
-## Prerequisites
-- Python 3.10+
-- Node.js 18+ (for web UI)
-- Redis (for full stack mode only)
+Configure OAuth and Redis in `.env` (see `.env.example`).
 
-## Manual setup (alternative)
-If you prefer not to use the setup script:
+## Prerequisites
+
+- Python 3.10+
+- Node.js 18+ (only for hosted mode React UI)
+- Redis (only for hosted mode)
+
+## Manual Setup
+
+If you prefer not to use `make start`:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 python -m playwright install chromium
 cp .env.example .env
-cd web && npm install && cd ..
 ```
 
-## OAuth settings
-- Redirect URI must match `GOOGLE_OAUTH_REDIRECT_URI` (e.g. `http://localhost:8000/auth/callback`)
-- Domain access controlled with `ALLOWED_GOOGLE_DOMAIN`
+## Login Modes
 
-## Login modes
-- `manual`: pauses for interactive login (CLI only)
-- `credentials`: form selectors + username/password
-- `storage_state`: Playwright storage state path
+| Mode | Description | UI Support |
+|------|-------------|------------|
+| `none` | No login needed — scans immediately | Yes |
+| `manual` | Opens visible browser for interactive login | Yes (click Continue when done) |
+| `credentials` | Auto-fills username/password via CSS selectors | Yes |
+| `storage_state` | Uses a Playwright storage state JSON file | Yes |
 
-## CLI usage
-`python pendo_feasibility_scraper.py https://app.example.com`
+## Configuration
+
+### Environment Variables (hosted mode only)
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_OAUTH_REDIRECT_URI` | OAuth callback URL |
+| `ALLOWED_GOOGLE_DOMAIN` | Restrict login to this domain (default: `pendo.io`) |
+| `SESSION_SECRET` | Session encryption key |
+| `REDIS_URL` | Redis connection URL |
+
+### Scan Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| Max Pages | 12 | Number of internal pages to crawl |
+| Headless | true | Run browser invisibly |
+| Dismiss Popups | true | Auto-close cookie banners |
+| Scroll Pages | true | Scroll to trigger lazy loading |
+
+## Project Structure
+
+```
+pendo_feasibility_scraper.py  — Core scraper engine + CLI entry point
+local_ui.py                   — Local Apple II web UI server
+server/                       — Hosted FastAPI API (OAuth, queue)
+worker/                       — Redis background worker
+web/                          — React frontend (hosted mode)
+tests/                        — Test suite
+deploy/                       — Dockerfiles + Render config
+```
 
 ## Deployment
-Use `deploy/Dockerfile.api` and `deploy/Dockerfile.worker`. A sample `deploy/render.yaml` is included.
+
+Use `deploy/Dockerfile.api` and `deploy/Dockerfile.worker` for containerised deployment. A sample `deploy/render.yaml` is included for Render.
+
+## Make Targets
+
+```
+make start       — Launch local UI (auto-setup if needed)
+make setup       — Create venv and install all deps
+make run-cli     — Run CLI scan (URL=https://...)
+make run-api     — Start hosted API server (port 8000)
+make run-worker  — Start background worker
+make run-web     — Start React dev server
+make build-web   — Build React UI for production
+make clean       — Remove venv and build artifacts
+```

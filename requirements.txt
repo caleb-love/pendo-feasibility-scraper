@@ -1,0 +1,15 @@
+# Core scraper
+playwright>=1.40.0
+
+# API server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+starlette>=0.27.0
+authlib>=1.2.0
+httpx>=0.25.0
+itsdangerous>=2.1.0
+
+# Background worker
+redis>=5.0.0
+rq>=1.16.0

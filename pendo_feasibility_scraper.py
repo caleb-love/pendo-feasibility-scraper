@@ -1207,9 +1207,19 @@ def generate_json_report(url: str, analyses: list[PageAnalysis], software: Softw
 # Login handling
 # ---------------------------------------------------------------------------
 
-def apply_login(page: Page, config: ScrapeConfig) -> None:
-    """Handle login based on config."""
+def apply_login(page: Page, config: ScrapeConfig, login_event=None) -> None:
+    """Handle login based on config.
+
+    Args:
+        login_event: Optional threading.Event. When provided (UI mode),
+            the function waits on the event instead of blocking on input().
+    """
     if config.login_mode == 'manual':
+        if login_event is not None:
+            # UI mode – wait for the frontend to signal "continue".
+            login_event.wait()
+            return
+        # CLI mode – block on stdin.
         print('\n' + '=' * 40)
         print('MANUAL LOGIN PAUSE')
         print('=' * 40)
@@ -1247,12 +1257,27 @@ def apply_login(page: Page, config: ScrapeConfig) -> None:
 # Scan orchestrator
 # ---------------------------------------------------------------------------
 
-def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
-    """Run a full scan and return structured results."""
+def run_scan(
+    start_url: str,
+    config: ScrapeConfig,
+    progress_callback=None,
+    login_event=None,
+) -> ScanResult:
+    """Run a full scan and return structured results.
+
+    Args:
+        progress_callback: Optional callable(str). Called with human-readable
+            progress messages so a UI can display live status.
+        login_event: Optional threading.Event. Passed to apply_login so the
+            UI can signal "continue" instead of blocking on stdin.
+    """
+    _progress = progress_callback or (lambda msg: None)
+
     if not start_url.startswith('http'):
         start_url = 'https://' + start_url
 
     with sync_playwright() as p:
+        _progress(f'LAUNCHING BROWSER...')
         browser = p.chromium.launch(headless=config.headless, slow_mo=config.browser_slow_mo_ms)
         context_kwargs = {'viewport': {'width': config.viewport_width, 'height': config.viewport_height}}
         if config.login_mode == 'storage_state' and config.storage_state_path:
@@ -1260,21 +1285,28 @@ def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
         context = browser.new_context(**context_kwargs)
         page = context.new_page()
 
+        _progress(f'NAVIGATING TO {start_url}')
         try:
             page.goto(start_url, wait_until=config.wait_until, timeout=config.navigation_timeout_ms)
         except PlaywrightTimeout:
             log.warning('Initial navigation timed out for %s – proceeding anyway', start_url)
+            _progress('NAVIGATION TIMED OUT - PROCEEDING ANYWAY')
 
-        apply_login(page, config)
+        if config.login_mode == 'manual':
+            _progress('WAITING FOR LOGIN...')
+        apply_login(page, config, login_event=login_event)
+        _progress('LOGIN COMPLETE')
 
         current_url = page.url
         if config.dismiss_popups:
             dismiss_popups(page)
             time.sleep(1)
 
+        _progress('DETECTING SOFTWARE...')
         log.info('Detecting software on %s', current_url)
         software = detect_software(page)
 
+        _progress(f'ANALYSING PAGE 1: {current_url}')
         log.info('Analysing page 1: %s', current_url)
         analyses = [analyse_page(page, current_url, should_scroll=config.scroll_pages)]
 
@@ -1288,6 +1320,8 @@ def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
         )
 
         pages_to_crawl = min(len(internal_links), max(0, config.max_pages - 1))
+        _progress(f'FOUND {len(internal_links)} INTERNAL LINKS, CRAWLING {pages_to_crawl}')
+
         for idx, link in enumerate(internal_links[:pages_to_crawl], start=2):
             try:
                 page.goto(link, wait_until=config.wait_until, timeout=config.navigation_timeout_ms)
@@ -1295,6 +1329,7 @@ def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
                 if config.dismiss_popups:
                     dismiss_popups(page)
 
+                _progress(f'ANALYSING PAGE {idx}/{pages_to_crawl + 1}: {link}')
                 log.info('Analysing page %d/%d: %s', idx, pages_to_crawl + 1, link)
                 analyses.append(analyse_page(page, link, should_scroll=config.scroll_pages))
 
@@ -1315,13 +1350,17 @@ def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
 
             except Exception as exc:
                 log.warning('Failed to analyse %s: %s', link, exc)
+                _progress(f'FAILED: {link} ({exc})')
                 continue
             time.sleep(0.5)
 
         browser.close()
 
+    _progress('GENERATING REPORT...')
     report_text = generate_report(start_url, analyses, software)
     report_json = generate_json_report(start_url, analyses, software)
+    _progress('SCAN COMPLETE')
+
     return ScanResult(
         start_url=start_url,
         analyses=analyses,
@@ -1336,11 +1375,16 @@ def run_scan(start_url: str, config: ScrapeConfig) -> ScanResult:
 # ---------------------------------------------------------------------------
 
 def main():
-    """CLI entry point."""
+    """CLI entry point.
+
+    No arguments  -> launches the local Apple II web UI.
+    With URL arg  -> runs a headless CLI scan (original behaviour).
+    """
     if len(sys.argv) < 2:
-        print('Usage: python pendo_feasibility_scraper.py <URL>')
-        print('Example: python pendo_feasibility_scraper.py https://app.example.com')
-        sys.exit(1)
+        # Launch local UI mode.
+        from local_ui import launch  # noqa: lazy import to avoid circular deps
+        launch()
+        return
 
     start_url = sys.argv[1]
 

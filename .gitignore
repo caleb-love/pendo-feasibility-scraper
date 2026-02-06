@@ -13,11 +13,8 @@ __pycache__/
 
 # Data and reports
 data/
-*.txt
-!README.md
-*.json
-!package.json
-!vite.config.js
+pendo_feasibility_*.txt
+pendo_feasibility_*.json
 
 # Node
 web/node_modules/
