@@ -4,10 +4,19 @@ from pydantic import BaseModel, Field
 
 
 class ScanConfig(BaseModel):
-    """Config passed to the scraper."""
+    """Config passed to the scraper.
+
+    Fields mirror ScrapeConfig in the scraper module so the API can
+    forward every supported option.
+    """
     max_links: int = 20
     max_pages: int = 12
     headless: bool = True
+    viewport_width: int = 1920
+    viewport_height: int = 1080
+    wait_until: str = 'domcontentloaded'
+    navigation_timeout_ms: int = 30000
+    browser_slow_mo_ms: int = 0
     include_query_params: bool = False
     allowlist_patterns: list[str] = Field(default_factory=list)
     denylist_patterns: list[str] = Field(default_factory=list)

@@ -106,6 +106,7 @@ class TestDataClasses:
         assert analysis.stable_id_examples == []
         assert analysis.pendo_attr_examples == []
         assert analysis.dynamic_class_examples == []
+        assert analysis.selector_suggestions == []
 
     def test_page_analysis_defaults(self):
         """PageAnalysis should have proper defaults."""

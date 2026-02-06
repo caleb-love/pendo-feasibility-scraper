@@ -94,12 +94,12 @@ def api_me(request):
 def create_scan_job(payload: ScanRequest, request):
     """Create a scan job."""
     get_current_user(request)
-    scan_id = create_scan(payload.target_url, payload.config.dict())
+    scan_id = create_scan(payload.target_url, payload.config.model_dump())
     queue = get_queue()
     queue.enqueue(
         'worker.tasks.run_scan_task',
         scan_id,
-        payload.dict(),
+        payload.model_dump(),
         job_timeout=60 * 30
     )
     return {'id': scan_id, 'status': 'queued'}
